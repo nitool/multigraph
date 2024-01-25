@@ -10,6 +10,7 @@ struct Node<T> {
     displacement_y: f32,
 }
 
+#[derive(Debug, Clone)]
 pub struct Graph<T> {
     dimensions: (f32, f32),
     nodes: HashMap<T, Node<T>>,
@@ -32,7 +33,7 @@ impl Matrix {
     }
 }
 
-impl<T: Eq + std::hash::Hash + Copy> Graph<T> {
+impl<T: Eq + std::hash::Hash + Clone> Graph<T> {
     pub fn new(
         data: Vec<[T; 2]>,
         dimensions: (f32, f32),
@@ -49,25 +50,25 @@ impl<T: Eq + std::hash::Hash + Copy> Graph<T> {
         let mut edge_counter = 0;
         for i in 0..data.len() {
             let edge: String;
-            if graph.edges.contains_key(&(data[i][0], data[i][1])) {
-                edge = graph.edges.get(&(data[i][0], data[i][1])).unwrap().to_string();
-            } else if graph.edges.contains_key(&(data[i][1], data[i][0])) {
-                edge = graph.edges.get(&(data[i][1], data[i][0])).unwrap().to_string();
+            if graph.edges.contains_key(&(data[i][0].clone(), data[i][1].clone())) {
+                edge = graph.edges.get(&(data[i][0].clone(), data[i][1].clone())).unwrap().to_string();
+            } else if graph.edges.contains_key(&(data[i][1].clone(), data[i][0].clone())) {
+                edge = graph.edges.get(&(data[i][1].clone(), data[i][0].clone())).unwrap().to_string();
             } else {
                 edge = format!("e{}", edge_counter);
                 edge_counter += 1;
-                graph.edges.insert((data[i][0], data[i][1]), edge.clone());
+                graph.edges.insert((data[i][0].clone(), data[i][1].clone()), edge.clone());
             }
 
             if graph.adjacencies.contains_key(&data[i][0]) {
-                graph.adjacencies.get_mut(&data[i][0]).unwrap().push((data[i][1], edge));
+                graph.adjacencies.get_mut(&data[i][0]).unwrap().push((data[i][1].clone(), edge));
             } else {
-                graph.adjacencies.insert(data[i][0], vec![(data[i][1], edge)]);
+                graph.adjacencies.insert(data[i][0].clone(), vec![(data[i][1].clone(), edge)]);
             }
 
             if !graph.nodes.contains_key(&data[i][0]) {
-                graph.nodes.insert(data[i][0], Node {
-                    value: data[i][0],
+                graph.nodes.insert(data[i][0].clone(), Node {
+                    value: data[i][0].clone(),
                     x: rng.gen_range(0.0..graph.dimensions.0 as f32).floor(),
                     y: rng.gen_range(0.0..graph.dimensions.1 as f32).floor(),
                     displacement_x: 0.0,
@@ -76,8 +77,8 @@ impl<T: Eq + std::hash::Hash + Copy> Graph<T> {
             }
 
             if !graph.nodes.contains_key(&data[i][1]) {
-                graph.nodes.insert(data[i][1], Node {
-                    value: data[i][1],
+                graph.nodes.insert(data[i][1].clone(), Node {
+                    value: data[i][1].clone(),
                     x: rng.gen_range(0.0..graph.dimensions.0 as f32).floor(),
                     y: rng.gen_range(0.0..graph.dimensions.1 as f32).floor(),
                     displacement_x: 0.0,
@@ -93,7 +94,7 @@ impl<T: Eq + std::hash::Hash + Copy> Graph<T> {
         for _iter in 0..iterations {
             // repulsion
             for i in 0..graph.nodes.len() {
-                let node_x = *graph.nodes.keys().nth(i).unwrap();
+                let node_x = graph.nodes.keys().nth(i).unwrap().clone();
                 let node_x = graph.nodes.get_mut(&node_x).unwrap();
                 node_x.displacement_x = 0.0;
                 node_x.displacement_y = 0.0;
@@ -103,9 +104,9 @@ impl<T: Eq + std::hash::Hash + Copy> Graph<T> {
                     }
 
                     let nodes_clone = graph.nodes.clone();
-                    let node_x = *graph.nodes.keys().nth(i).unwrap();
+                    let node_x = graph.nodes.keys().nth(i).unwrap().clone();
                     let node_x = nodes_clone.get(&node_x).unwrap();
-                    let node_y = *graph.nodes.keys().nth(j).unwrap();
+                    let node_y = graph.nodes.keys().nth(j).unwrap().clone();
                     let node_y = nodes_clone.get(&node_y).unwrap();
                     let (delta_x, delta_y) = Matrix::calculate_difference(node_x, node_y);
                     let distance = Matrix::calculate_norm(delta_x, delta_y);
@@ -155,7 +156,7 @@ impl<T: Eq + std::hash::Hash + Copy> Graph<T> {
             }
 
             for i in 0..graph.nodes.len() {
-                let node = *graph.nodes.keys().nth(i).unwrap();
+                let node = graph.nodes.keys().nth(i).unwrap().clone();
                 let node = graph.nodes.get_mut(&node).unwrap();
                 let norm = Matrix::calculate_norm(node.displacement_x, node.displacement_y);
                 let displacement_x = (node.displacement_x / norm) * (norm.min(temperature));
@@ -210,5 +211,6 @@ mod tests {
 
         assert_eq!(x.len(), graph.nodes.len());
         assert_eq!(y.len(), graph.nodes.len());
+        println!("{:#?}", graph.nodes);
     }
 }
