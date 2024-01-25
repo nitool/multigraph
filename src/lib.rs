@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use rand::Rng;
 
 #[derive(Debug, Clone)]
-struct Node<T> {
-    value: T,
-    x: f32,
-    y: f32,
+pub struct Node<T> {
+    pub value: T,
+    pub x: f32,
+    pub y: f32,
     displacement_x: f32,
     displacement_y: f32,
 }
@@ -13,8 +13,8 @@ struct Node<T> {
 #[derive(Debug, Clone)]
 pub struct Graph<T> {
     dimensions: (f32, f32),
-    nodes: HashMap<T, Node<T>>,
-    edges: HashMap<(T, T), String>,
+    pub nodes: HashMap<T, Node<T>>,
+    pub edges: HashMap<(T, T), String>,
     adjacencies: HashMap<T, Vec<(T, String)>>,
 }
 
