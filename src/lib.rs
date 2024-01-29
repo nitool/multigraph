@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, cell::RefCell, borrow::BorrowMut};
 use rand::Rng;
 
 #[derive(Debug, Clone)]
@@ -13,7 +13,7 @@ pub struct Node<T> {
 #[derive(Debug, Clone)]
 pub struct Graph<T> {
     dimensions: (f32, f32),
-    pub nodes: HashMap<T, Node<T>>,
+    pub nodes: HashMap<T, RefCell<Node<T>>>,
     pub edges: HashMap<(T, T), String>,
     adjacencies: HashMap<T, Vec<(T, String)>>,
 }
@@ -33,6 +33,13 @@ impl Matrix {
     }
 }
 
+/** 
+ * https://www.dbc.wroc.pl/Content/59604/01-Andrzejak.pdf
+ *
+ * todo:
+ * - przerobić na wybór algorytmu
+ * - dodać kilka algorytmów generowania multigrafu
+ */
 impl<T: Eq + std::hash::Hash + Clone> Graph<T> {
     pub fn new(
         data: Vec<[T; 2]>,
@@ -67,48 +74,49 @@ impl<T: Eq + std::hash::Hash + Clone> Graph<T> {
             }
 
             if !graph.nodes.contains_key(&data[i][0]) {
-                graph.nodes.insert(data[i][0].clone(), Node {
+                graph.nodes.insert(data[i][0].clone(), RefCell::new(Node {
                     value: data[i][0].clone(),
                     x: rng.gen_range(0.0..graph.dimensions.0 as f32).floor(),
                     y: rng.gen_range(0.0..graph.dimensions.1 as f32).floor(),
                     displacement_x: 0.0,
                     displacement_y: 0.0,
-                });
+                }));
             }
 
             if !graph.nodes.contains_key(&data[i][1]) {
-                graph.nodes.insert(data[i][1].clone(), Node {
+                graph.nodes.insert(data[i][1].clone(), RefCell::new(Node {
                     value: data[i][1].clone(),
                     x: rng.gen_range(0.0..graph.dimensions.0 as f32).floor(),
                     y: rng.gen_range(0.0..graph.dimensions.1 as f32).floor(),
                     displacement_x: 0.0,
                     displacement_y: 0.0,
-                });
+                }));
             }
         }
 
         let factor = ((graph.dimensions.0 * graph.dimensions.1) as f32 / graph.nodes.len() as f32).sqrt();
         let mut temperature = (graph.dimensions.0 as f32).min(graph.dimensions.1 as f32) / 100.0;
+        let nodes_len = graph.nodes.len();
 
         // https://dcc.fceia.unr.edu.ar/sites/default/files/uploads/materias/fruchterman.pdf
         for _iter in 0..iterations {
             // repulsion
-            for i in 0..graph.nodes.len() {
-                let node_x = graph.nodes.keys().nth(i).unwrap().clone();
-                let node_x = graph.nodes.get_mut(&node_x).unwrap();
+            for node_x in graph.nodes.values() {
+                let mut node_x = node_x.borrow_mut();
                 node_x.displacement_x = 0.0;
                 node_x.displacement_y = 0.0;
-                for j in 0..graph.nodes.len() {
-                    if i == j {
+                for node_y in graph.nodes.values() {
+                    let node_y = node_y.try_borrow();
+                    if node_y.is_err() {
                         continue;
                     }
 
-                    let nodes_clone = graph.nodes.clone();
-                    let node_x = graph.nodes.keys().nth(i).unwrap().clone();
-                    let node_x = nodes_clone.get(&node_x).unwrap();
-                    let node_y = graph.nodes.keys().nth(j).unwrap().clone();
-                    let node_y = nodes_clone.get(&node_y).unwrap();
-                    let (delta_x, delta_y) = Matrix::calculate_difference(node_x, node_y);
+                    let node_y = node_y.unwrap();
+                    if node_x.value == node_y.value {
+                        continue;
+                    }
+
+                    let (delta_x, delta_y) = Matrix::calculate_difference(&(*node_x), &(*node_y));
                     let distance = Matrix::calculate_norm(delta_x, delta_y);
 
                     let displacement_x;
@@ -122,7 +130,6 @@ impl<T: Eq + std::hash::Hash + Clone> Graph<T> {
                         displacement_y = ((-1.0 * factor) * factor) / 10.0;
                     }
 
-                    let node_x = graph.nodes.get_mut(&node_x.value).unwrap();
                     node_x.displacement_x -= displacement_x;
                     node_x.displacement_y -= displacement_y;
                 }
@@ -130,10 +137,9 @@ impl<T: Eq + std::hash::Hash + Clone> Graph<T> {
 
             // attraction
             for (i, j) in graph.edges.keys() {
-                let nodes_clone = graph.nodes.clone();
-                let node_x = nodes_clone.get(&i).unwrap();
-                let node_y = nodes_clone.get(&j).unwrap();
-                let (delta_x, delta_y) = Matrix::calculate_difference(node_x, node_y);
+                let mut node_x = graph.nodes.get(&i).unwrap().borrow_mut();
+                let mut node_y = graph.nodes.get(&j).unwrap().borrow_mut();
+                let (delta_x, delta_y) = Matrix::calculate_difference(&(*node_x), &(*node_y));
                 let distance = Matrix::calculate_norm(delta_x, delta_y);
 
                 let displacement_x;
@@ -146,18 +152,15 @@ impl<T: Eq + std::hash::Hash + Clone> Graph<T> {
                     continue;
                 }
 
-                let node_x = graph.nodes.get_mut(&node_x.value).unwrap();
                 node_x.displacement_x -= displacement_x;
                 node_x.displacement_y -= displacement_y;
-
-                let node_y = graph.nodes.get_mut(&node_y.value).unwrap();
                 node_y.displacement_x += displacement_x;
                 node_y.displacement_y += displacement_y;
             }
 
-            for i in 0..graph.nodes.len() {
-                let node = graph.nodes.keys().nth(i).unwrap().clone();
-                let node = graph.nodes.get_mut(&node).unwrap();
+            for i in 0..nodes_len {
+                let node = graph.nodes.keys().nth(i).unwrap();
+                let mut node = graph.nodes.get(node).unwrap().borrow_mut();
                 let norm = Matrix::calculate_norm(node.displacement_x, node.displacement_y);
                 let displacement_x = (node.displacement_x / norm) * (norm.min(temperature));
                 let displacement_y = (node.displacement_y / norm) * (norm.min(temperature));
@@ -197,20 +200,40 @@ mod tests {
         }
 
         let graph = super::Graph::new(data, (500.0, 500.0), iterations);
-        let mut x = vec![];
-        let mut y = vec![];
+        let mut xy = vec![];
         for node in graph.nodes.values() {
-            if !x.contains(&node.x) {
-                x.push(node.x);
-            }
-
-            if !y.contains(&node.y) {
-                y.push(node.y);
+            let single = (node.borrow().x, node.borrow().y);
+            if !xy.contains(&single) {
+                xy.push(single);
             }
         }
 
-        assert_eq!(x.len(), graph.nodes.len());
-        assert_eq!(y.len(), graph.nodes.len());
+        assert_eq!(xy.len(), graph.nodes.len());
+        println!("{:#?}", graph.nodes);
+    }
+
+    #[test]
+    fn sitegraph() {
+        let file = std::fs::read_to_string("httpswwwfurgonetkapl.sitegraph").unwrap();
+        let mut data = vec![];
+        let iterations = 100;
+
+        for line in file.lines() {
+            let line = line.split_once(";").unwrap();
+            data.push([line.0.to_string(), line.1.to_string()]);
+        }
+
+        println!("dane z sitegrapha {}", data.len());
+        let graph = super::Graph::new(data, (500.0, 500.0), iterations);
+        let mut xy = vec![];
+        for node in graph.nodes.values() {
+            let single = (node.borrow().x, node.borrow().y);
+            if !xy.contains(&single) {
+                xy.push(single);
+            }
+        }
+
+        assert_eq!(xy.len(), graph.nodes.len());
         println!("{:#?}", graph.nodes);
     }
 }
