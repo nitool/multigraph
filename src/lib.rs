@@ -1,4 +1,4 @@
-use std::{collections::HashMap, cell::RefCell, borrow::BorrowMut};
+use std::{collections::HashMap, cell::RefCell};
 use rand::Rng;
 
 #[derive(Debug, Clone)]
@@ -224,7 +224,7 @@ mod tests {
         }
 
         println!("dane z sitegrapha {}", data.len());
-        let graph = super::Graph::new(data, (500.0, 500.0), iterations);
+        let graph = super::Graph::new(data, (20000.0, 20000.0), iterations);
         let mut xy = vec![];
         for node in graph.nodes.values() {
             let single = (node.borrow().x, node.borrow().y);
